@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flash_chat/constants.dart';
 
+final _firestore = Firestore.instance;
+
 class ChatScreen extends StatefulWidget {
   static const String id = 'chat_screen';
 
@@ -12,9 +14,9 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _auth = FirebaseAuth.instance;
-  final _firestore = Firestore.instance;
   FirebaseUser loggedInUser;
   String messageText;
+  TextEditingController messageEditingController = TextEditingController();
 
   void messagesStream() {
     _firestore.collection('messages').snapshots().forEach((snapshot) {
@@ -64,25 +66,7 @@ class _ChatScreenState extends State<ChatScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            StreamBuilder<QuerySnapshot>(
-                stream: _firestore.collection('messages').snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return CircularProgressIndicator(
-                      backgroundColor: Colors.lightBlueAccent,
-                    );
-                  }
-                  List<Text> messageWidgets = [];
-                  snapshot.data.documents.forEach((document) {
-                    String text = document.data['text'];
-                    String sender = document.data['sender'];
-                    var widget = Text('$sender: $text');
-                    messageWidgets.add(widget);
-                  });
-                  return Column(
-                    children: messageWidgets,
-                  );
-                }),
+            MessageStream(),
             Container(
               decoration: kMessageContainerDecoration,
               child: Row(
@@ -90,6 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: <Widget>[
                   Expanded(
                     child: TextField(
+                      controller: messageEditingController,
                       onChanged: (value) {
                         messageText = value;
                       },
@@ -102,6 +87,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         'text': messageText,
                         'sender': loggedInUser.email,
                       });
+                      messageEditingController.clear();
                     },
                     child: Text(
                       'Send',
@@ -113,6 +99,78 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class MessageStream extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+        stream: _firestore.collection('messages').snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return CircularProgressIndicator(
+              backgroundColor: Colors.lightBlueAccent,
+            );
+          }
+          List<MessageBubble> messageWidgets = [];
+          snapshot.data.documents.forEach((document) {
+            String text = document.data['text'];
+            String sender = document.data['sender'];
+            MessageBubble bubble = MessageBubble(sender: sender, text: text);
+            messageWidgets.add(bubble);
+          });
+          return Expanded(
+            child: ListView(
+              padding: EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 20,
+              ),
+              children: messageWidgets,
+            ),
+          );
+        });
+  }
+}
+
+class MessageBubble extends StatelessWidget {
+  final String text;
+  final String sender;
+
+  MessageBubble({this.text, this.sender});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            '$sender',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          Material(
+            elevation: 5,
+            color: Colors.lightBlueAccent,
+            borderRadius: BorderRadius.circular(30),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 10,
+              ),
+              child: Text(
+                '$sender: $text',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
